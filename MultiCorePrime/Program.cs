@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -9,7 +10,8 @@ namespace MultiCorePrime
     {
 
         static long currentNumber = 0;
-        static long maxNumber = (long)Math.Pow(10, 6);
+        static long primesFound = 0;
+        static long maxNumber = (long)Math.Pow(10, 7);
 
         static void Main(string[] args)
         {
@@ -19,33 +21,43 @@ namespace MultiCorePrime
         {
             int minWorker, minIOC;
             int numThreads = 8;
-            // Get the current settings.
-            ThreadPool.GetMinThreads(out minWorker, out minIOC);
+
+            var numList = new int[] { 4 };// 1, 2, 3, 4 };//{ 1, 2, 3, 4, 5, 6, 7, 8 };
             // Change the minimum number of worker threads to four, but
             // keep the old setting for minimum asynchronous I/O 
             // completion threads.
-            if (true)//ThreadPool.SetMinThreads(numThreads, minIOC))
+
+            foreach (var numThread in numList)
             {
-                Console.WriteLine($"Set number of Threads to '{numThreads}");
+                GC.Collect();
+                currentNumber = 0;
+                primesFound = 0;
+                // Get the current settings.
+                ThreadPool.GetMinThreads(out minWorker, out minIOC);
 
-                var tasks = new List<Task>();
+                Console.WriteLine($"{minWorker}, {minIOC}");
 
-
-                for (int i = 0; i < numThreads; i++)
+                if (ThreadPool.SetMinThreads(numThread, minIOC))
                 {
-                    tasks.Add(Task.Run((Action)PrintPrime));
+                    var tasks = new List<Task>();
+
+                    var start = DateTime.Now;
+                    for (int i = 0; i < numThreads; i++)
+                    {
+                        tasks.Add(Task.Factory.StartNew(PrintPrime));
+                    }
+
+                    await Task.WhenAll(tasks);
+                    var end = DateTime.Now;
+
+                    Console.WriteLine($"Time at {numThread} Tasks is {(end - start).TotalMilliseconds} ms");
+                    Console.WriteLine($"Primes Found: {primesFound}");
+
                 }
-
-                var start = DateTime.Now;
-                await Task.WhenAll(tasks);
-                var end = DateTime.Now;
-
-                Console.WriteLine($"Time at {numThreads} Tasks is {(end-start).TotalMilliseconds} ms");
-
-            }
-            else
-            {
-                Console.WriteLine("Setting maximum Number of Threads failed");
+                else
+                {
+                    Console.WriteLine("Setting maximum Number of Threads failed");
+                }
             }
         }
 
@@ -56,7 +68,8 @@ namespace MultiCorePrime
             {
                 value = Interlocked.Increment(ref currentNumber);
                 if (IsPrime(value))
-                    Console.WriteLine(value);
+                    Interlocked.Increment(ref primesFound);
+                    //Console.WriteLine(value);
             }
         }
 
